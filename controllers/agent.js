@@ -1,63 +1,58 @@
-const Agent = require('../models/agent');
-const bcrypt = require('bcrypt')
+const Client = require('../models/agent');
+const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 
-exports.register = (req, res, next)=>{
-    bcrypt.hash(req.body.password, 10)
-          .then(hash=>{
-            const agent = new Agent({
-                nom : req.body.nom,
-                sexe : req.body.sexe,
-                email : req.body.email,
-                password : hash
-            })
-            agent.save()
-                 .then(()=>{res.status(200).json({message:"Inscription réussie"})})
-                 .catch(error=>{res.status(401).json({message: "Erreur lors de l'inscription"})})
-               
-          })
-          .catch(error=>{res.status(500).json({message : "Erreur du serveur"})})
-}
+// === INSCRIPTION ===
+exports.register = (req, res) => {
+  const { name, email, password } = req.body;
 
-exports.login = (req, res, next)=>{
-    Agent.findOne({email:req.body.email})
-        .then(user=>{
-            if(user === null){
-                res.status(404).json({message : "Paire de clés incorrecte"});
-            }
-            else{
-                bcrypt.compare(req.body.password, user.password)
-                       .then(valid =>{
-                            if(!valid){
-                            res.status(401).json({message : "Paire de clés incorrecte"});
-                            }
-                            else{
-                                res.status(200).json({
-                                    userId:user._id,
-                                    Token : jwt.sign(
-                                        {userId : user._id}, 
-                                        'RANDOM_TOKEN_SECRET',
-                                        {expiresIn : '24H'}
-                                    ),
-                                    nom:user.nom,
-                                    email:user.email,
-                                
-                                });
-                            }
-                       })
-                       .catch(err => res.status(400).json({error : "une erreur 400"}));
-            }
-        })
-        .catch(error=>
-            res.status(500).json({error: error})
-        )
+  Client.findOne({ email })
+    .then(existingClient => {
+      if (existingClient) return Promise.reject('Email déjà utilisé');
+
+      // Hachage du mot de passe ici
+      return bcrypt.hash(password, 10)
+        .then(hashedPassword => {
+          const newClient = new Client({ name, email, password: hashedPassword });
+          return newClient.save();
+        });
+    })
+    .then(client => res.status(201).json({ message: 'Inscription réussie', client }))
+    .catch(err => res.status(400).json({ message: err }));
 };
 
+// === CONNEXION ===
+exports.login = (req, res) => {
+  const { email, password } = req.body;
 
-exports.getagent = (req, res, next)=>{
-    Agent.find()
-         .then(data=>res.status(200).json(data))
-         .catch(error=>res.status(500).json({message : "erreur lors de la recupération des données"}))
-}
+  Client.findOne({ email })
+    .then(client => {
+      if (!client) return Promise.reject('Client non trouvé');
+      return bcrypt.compare(password, client.password)
+        .then(isMatch => {
+          if (!isMatch) return Promise.reject('Mot de passe incorrect');
+          const token = jwt.sign({ id: client._id }, 'SECRET_KEY', { expiresIn: '7d' });
+          res.json({ message: 'Connexion réussie', token, client });
+        });
+    })
+    .catch(err => res.status(400).json({ message: err }));
+};
 
+// === LOCALISATION ===
+exports.updateLocation = (clientId, latitude, longitude) => {
+  return Client.findByIdAndUpdate(
+    clientId,
+    { location: { latitude, longitude, updatedAt: Date.now() } },
+    { new: true }
+  ).then(client => {
+    if (!client) return Promise.reject('Client non trouvé');
+    return client;
+  });
+};
 
+exports.getLocation = (clientId) => {
+  return Client.findById(clientId).then(client => {
+    if (!client) return Promise.reject('Client non trouvé');
+    return client.location;
+  });
+};
