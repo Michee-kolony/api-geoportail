@@ -3,6 +3,12 @@ const express = require('express');
 const router = express.Router();
 const clientController = require('../controllers/agent');
 
+// routes/clientRoutes.js
+router.get('/all/locations', (req, res) => {
+  clientController.getAllClientsWithLocations(req, res);
+});
+
+
 // ✅ Authentification
 router.post('/register', (req, res) => {
   clientController.register(req, res);

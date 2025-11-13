@@ -2,6 +2,14 @@ const Client = require('../models/agent');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 
+// === TOUS LES CLIENTS AVEC LEURS POSITIONS ===
+exports.getAllClientsWithLocations = (req, res) => {
+  Client.find({}, { name: 1, email: 1, location: 1 }) // on sélectionne seulement le nom, email et location
+    .then(clients => res.json({ clients }))
+    .catch(err => res.status(500).json({ message: 'Erreur serveur', error: err }));
+};
+
+
 // === INSCRIPTION ===
 exports.register = (req, res) => {
   const { name, email, password } = req.body;
